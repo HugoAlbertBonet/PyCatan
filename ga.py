@@ -10,9 +10,6 @@ from Agents.SigmaAgent import SigmaAgent as sa
 from Agents.TristanAgent import TristanAgent as ta
 import random
 
-from deap import base
-from deap import creator
-from deap import tools
 import numpy as np
 import time
 import concurrent.futures
@@ -20,11 +17,12 @@ import concurrent.futures
 from Managers.GameDirector import GameDirector
 
 class GA():
-    def __init__(self, ind_size, agents, rounds = 50):
+    def __init__(self, ind_size, agents, rounds = 20):
         self.ind_size = ind_size
         self.agents = agents
         self.rounds = rounds
         self.population = []
+        self.fitness = []
 
 
     def game(self, all_agents):
@@ -44,9 +42,10 @@ class GA():
         return a
     
     def create_population(self, pop_size):
-        self.population = []
+        population = []
         for i in range(pop_size):
-            self.population.append(self.create_individual())
+            population.append(self.create_individual())
+        return population
 
 
     def evaluate_game_winner(self, chosen_agent, game_trace):
@@ -151,22 +150,89 @@ class GA():
             new_fitness.append(new_fit/self.rounds)
             selected.append(indivs[new_ind])
         return selected, new_fitness
+    
+    def evaluate_initial_population_tournament_parallel(self):
+        pop = random.sample(self.population, k=len(self.population))
+        fitness = []
+        #individuals = []
+        for i in range(0, len(pop)-3, 4):
+            indivs = [pop[i], pop[i+1], pop[i+2], pop[i+3]]
+            indiv_fitness = {0:0, 1:0, 2:0, 3:0}
+            with concurrent.futures.ProcessPoolExecutor() as pool:
+                for res in  zip(pool.map(self.evaluate_group_order, [indivs for j in range(self.rounds)])):
+                    winner_order, game_order = res[0]
+                    for idx, k in enumerate(winner_order):
+                        indiv_fitness[game_order[k]] += idx
+            indivs_ordered = sorted([(k,v) for k,v in indiv_fitness.items()])
+            fit = [v/self.rounds for k,v in indivs_ordered]
+            fitness = fitness + fit
+            #individuals = individuals + [indivs[k] for k,v in indivs_ordered]
+        #print(all(x == y for x,y in zip(pop, individuals)))
+        return pop, fitness
 
-    def mutation():
-        pass
+    def crossover_avg(self, indiv1, indiv2):
+        child =  [(x+y)/2 for x, y in zip(indiv1, indiv2)]
+        suma = sum(child)
+        return [x/suma for x in child]
 
-    def crossover():
-        pass
+    def crossover_onepoint(self, indiv1, indiv2):
+        idx = random.randint(0, len(indiv1)-1)
+        child1 = indiv1[:idx] + indiv2[idx:]
+        child2 = indiv2[:idx] + indiv1[idx:]
+        suma1 = sum(child1)
+        suma2 = sum(child2)
+        return [x/suma1 for x in child1], [x/suma2 for x in child2]
+
+    def mutation_power(self, indiv):
+        suma = sum(x**2 for x in indiv)
+        return [(x**2)/suma for x in indiv]
+
+    def mutation_twopoints(self, indiv):
+        idx1 = random.randint(0, len(indiv)-2)
+        idx2 = random.randint(idx1+1, len(indiv)-1)
+        elem1 = indiv[idx1]
+        elem2 = indiv[idx2]
+        indiv[idx1] = elem2
+        indiv[idx2] = elem1
+        return indiv
 
 
-    def selection():
-        pass
+    def selection(self, amount = None, tournament_size = 2):
+        idx = random.sample(list(range(len(self.population))), k=len(self.population))
+        selected = []
+        if amount is None: amount = len(idx)
+        for i in range(0, len(idx)-1, tournament_size):
+            min_fit = 1000
+            min_id = -1
+            for j in range(tournament_size):
+                if self.fitness[idx[i+j]] < min_fit:
+                    min_fit = self.fitness[idx[i+j]]
+                    min_id = idx[i+j]
+            selected.append(min_id)
+            if len(selected) >= amount:
+                return selected
+        return selected
 
-    def replacement():
-        pass
+    def __call__(self, pop_size = 20, generations = 10):
+        self.population = self.create_population(pop_size)
+        for gen in range(generations):
+            self.population, self.fitness = self.evaluate_initial_population_tournament_parallel()
+            min_fit = 10000
+            self.best_indiv = -1
+            for i,fit in enumerate(self.fitness):
+                if fit < min_fit:
+                    self.best_indiv = self.population[i]
+                    min_fit = fit
+            print(f"Generation {gen}. Best fitness: {min_fit}. Best individual: {[round(x, 3) for x in self.best_indiv]}, Mean fitness: {sum(self.fitness)/len(self.population):.2f}")
+            selected_indices = self.selection(amount = 4)
+            child1, child2 = self.crossover_onepoint(self.population[selected_indices[0]], self.population[selected_indices[1]])
+            child3, child4 = self.crossover_onepoint(self.population[selected_indices[2]], self.population[selected_indices[3]])
+            child1, child4 = self.mutation_power(child1), self.mutation_twopoints(child4)
+            new_pop, _ = self.evaluate_population_tournament_parallel()
+            new_pop = new_pop + [child1, child2, child3, child4] + [self.best_indiv] + [self.population[idx] for idx in self.selection()]
+            self.population = new_pop + self.create_population(pop_size-len(new_pop))
 
-    def __call__():
-        pass
+
 
     def plot_evolution():
         pass
@@ -176,14 +242,22 @@ if __name__ == "__main__":
     AGENTS = [ra, aha, apa, apja, cza, ca, ea, paaa, sa, ta]
     IND_SIZE = len(AGENTS)
     ga = GA(IND_SIZE, AGENTS)
+    ga()
+    print(ga.best_indiv)
     
-    ga.create_population(40)
+    """ga.population = ga.create_population(40)
     t1 = time.time()
-    a = ga.evaluate_population_tournament_parallel()
+    a = ga.evaluate_initial_population_tournament_parallel()
+    ga.population, ga.fitness = a
+    b = ga.selection(amount = 2)
     t2 = time.time()
     print(t2-t1)
+    print(len(b))"""
 
-    t1 = time.time()
+    """t1 = time.time()
     a = ga.evaluate_population_tournament()
     t2 = time.time()
-    print(t2-t1)
+    print(t2-t1)"""
+
+    #print(ga.crossover_onepoint([2,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1], [0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9,0.9]))
+    #print(ga.mutation_twopoints([1,2,3,4,5,6,7,8,9,10]))

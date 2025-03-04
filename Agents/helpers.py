@@ -224,7 +224,7 @@ def get_thief_nodes(board: Board) -> List[int]:
 
 # development card helpers
 
-def get_development_card(hand, effect) -> int | None:
+def get_development_card(hand, effect): # -> int | None:
     """ Returns the index of the first card of a certain kind in a hand. """
     for i, card in enumerate(hand):
         if card.effect == effect:
