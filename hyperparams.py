@@ -72,6 +72,7 @@ for pop_size, generations, rounds, tournament_size in tqdm(list_hyperparams):
     dic_hyperparams["time"].append(t2-t1)
 
 df = pd.DataFrame(dic_hyperparams)
+df.to_csv("ga_results.csv", index=False)
 
 save_dataframe_to_s3(df, "pycatan", "ga_results.csv")
 
