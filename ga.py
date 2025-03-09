@@ -251,13 +251,14 @@ class GA():
                 return selected
         return selected
 
-    def __call__(self, pop_size = 20, generations = 20):
+    def __call__(self, pop_size = 20, generations = 20, tournament_size = 2):
         self.population = self.create_population(pop_size)
         for gen in range(generations):
             try:
                 self.fitness, min_fit, self.best_indiv = self.evaluate_initial_population_individually_parallel()
             except: 
                 self.fitness, min_fit, self.best_indiv = self.evaluate_initial_population_individually_parallel()
+            self.min_fit = min_fit
             print(f"Generation {gen}. Best fitness: {min_fit:.3f}. Best individual: {[round(x, 3) for x in self.best_indiv]}, Mean fitness: {sum(self.fitness)/len(self.population):.2f}")
             selected_indices = self.selection(amount = 4)
             child1, child2 = self.crossover_onepoint(self.population[selected_indices[0]], self.population[selected_indices[1]])
@@ -269,7 +270,7 @@ class GA():
             #t2 = time.time()
             #print(f"Tournament time: {t2-t1}")
             #t1 = time.time()
-            new_pop, _ = self.evaluate_population_tournament_from_existing_fitness(len_selected = 2)
+            new_pop, _ = self.evaluate_population_tournament_from_existing_fitness(len_selected = tournament_size)
             #t2 = time.time()
             #print(f"Tournament from existing fitness time: {t2-t1}")
             new_pop = new_pop + [child1, child2, child3, child4, child_best] + [self.best_indiv] + [self.population[idx] for idx in self.selection()]
@@ -284,6 +285,6 @@ class GA():
 if __name__ == "__main__":
     AGENTS = [ra, aha, apa, apja, cza, ca, ea, paaa, sa, ta]
     IND_SIZE = len(AGENTS)
-    ga = GA(IND_SIZE, AGENTS, rounds = 20)
+    ga = GA(IND_SIZE, AGENTS, rounds = 20, tournament_size = 2)
     ga()
     print(ga.best_indiv)
